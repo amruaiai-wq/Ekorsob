@@ -19,8 +19,10 @@ interface TestData {
   description?: string
   category?: string
   subcategory?: string
+  part?: string
   difficulty?: string
   time_limit_minutes?: number
+  test_number?: number
   questions: Question[]
 }
 
@@ -64,8 +66,25 @@ const CATEGORIES = [
     value: 'toeic',
     label: '🇬🇧 TOEIC',
     subcategories: [
-      { value: 'listening', label: 'Listening' },
-      { value: 'reading', label: 'Reading' }
+      { 
+        value: 'listening', 
+        label: 'Listening',
+        parts: [
+          { value: 'Part 1', label: 'Part 1 - Photographs' },
+          { value: 'Part 2', label: 'Part 2 - Question-Response' },
+          { value: 'Part 3', label: 'Part 3 - Conversations' },
+          { value: 'Part 4', label: 'Part 4 - Short Talks' }
+        ]
+      },
+      { 
+        value: 'reading', 
+        label: 'Reading',
+        parts: [
+          { value: 'Part 5', label: 'Part 5 - Incomplete Sentences' },
+          { value: 'Part 6', label: 'Part 6 - Text Completion' },
+          { value: 'Part 7', label: 'Part 7 - Reading Comprehension' }
+        ]
+      }
     ]
   }
 ]
@@ -77,6 +96,7 @@ export default function UploadPage() {
   const [preview, setPreview] = useState<TestData | null>(null)
   const [fileType, setFileType] = useState<'json' | 'excel' | 'csv' | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('')
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('')
   const supabase = createSupabaseClient()
 
   // ฟังก์ชันแปลง Excel/CSV
@@ -123,7 +143,6 @@ export default function UploadPage() {
                 order_num: i
               }
               
-              // ✅ เช็คให้แน่ใจว่า choices ไม่เป็น null และมีข้อมูลครบ
               if (question.question_text && question.choices && question.choices.every(c => c)) {
                 questions.push(question)
               }
@@ -137,8 +156,9 @@ export default function UploadPage() {
 
             const testData: TestData = {
               title: 'ชุดข้อสอบจากไฟล์',
-              difficulty: 'medium',
+              difficulty: 'ปานกลาง',
               time_limit_minutes: 60,
+              test_number: 1,
               questions: questions
             }
 
@@ -213,69 +233,97 @@ export default function UploadPage() {
     setPreview({ ...preview, [field]: value })
   }
 
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const category = e.target.value
-    setSelectedCategory(category)
-    if (preview) {
-      setPreview({
-        ...preview,
-        category: category,
-        subcategory: ''
-      })
-    }
-  }
-
-  const handleSubcategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const subcategory = e.target.value
-    if (preview) {
-      setPreview({
-        ...preview,
-        subcategory: subcategory
-      })
-    }
-  }
-
   const getCurrentSubcategories = () => {
     const category = CATEGORIES.find(c => c.value === selectedCategory)
     return category?.subcategories || []
   }
 
+  const getCurrentParts = () => {
+    const category = CATEGORIES.find(c => c.value === selectedCategory)
+    const subcategory = category?.subcategories.find(s => s.value === selectedSubcategory)
+    return (subcategory as any)?.parts || []
+  }
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    setSelectedCategory(value)
+    setSelectedSubcategory('')
+    if (preview) {
+      setPreview({
+        ...preview,
+        category: value,
+        subcategory: '',
+        part: ''
+      })
+    }
+  }
+
+  const handleSubcategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    setSelectedSubcategory(value)
+    if (preview) {
+      setPreview({
+        ...preview,
+        subcategory: value,
+        part: ''
+      })
+    }
+  }
+
+  const handlePartChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value
+    if (preview) {
+      setPreview({
+        ...preview,
+        part: value
+      })
+    }
+  }
+
   const handleUpload = async () => {
-    if (!preview) {
-      alert('❌ กรุณาเลือกไฟล์')
+    if (!preview || !preview.category || !preview.subcategory) {
+      alert('❌ กรุณากรอกข้อมูลให้ครบถ้วน')
       return
     }
 
-    if (!preview.title || preview.title === 'ชุดข้อสอบจากไฟล์') {
-      alert('❌ กรุณาระบุชื่อชุดข้อสอบ')
-      return
-    }
-
-    if (!preview.category || !preview.subcategory) {
-      alert('❌ กรุณาเลือกหมวดหมู่หลักและหมวดหมู่ย่อย')
+    // สำหรับ TOEIC ต้องมี Part
+    if (preview.category === 'toeic' && !preview.part) {
+      alert('❌ กรุณาเลือก Part สำหรับข้อสอบ TOEIC')
       return
     }
 
     setLoading(true)
 
     try {
-      if (!preview.questions || preview.questions.length === 0) {
-        throw new Error('ไม่มีข้อสอบในไฟล์')
+      // หาเลข test_number ถัดไป
+      const { data: existingTests } = await supabase
+        .from('Tests')
+        .select('test_number')
+        .eq('category', preview.category)
+        .eq('subcategory', preview.subcategory)
+        .eq('part', preview.part || '')
+        .order('test_number', { ascending: false })
+        .limit(1)
+
+      const nextTestNumber = existingTests && existingTests.length > 0 
+        ? (existingTests[0].test_number || 0) + 1 
+        : 1
+
+      const testToInsert = {
+        title: preview.title,
+        description: preview.description || null,
+        category: preview.category,
+        subcategory: preview.subcategory,
+        part: preview.part || null,
+        difficulty: preview.difficulty || 'ปานกลาง',
+        total_questions: preview.questions.length,
+        test_number: nextTestNumber,
+        is_active: true
       }
 
       const { data: test, error: testError } = await supabase
         .from('Tests')
-        .insert({
-          title: preview.title,
-          description: preview.description || null,
-          category: preview.category,
-          subcategory: preview.subcategory,
-          difficulty: preview.difficulty || 'medium',
-          time_limit_minutes: preview.time_limit_minutes || 60,
-          total_questions: preview.questions.length,
-          is_premium: false,
-          is_active: true
-        })
+        .insert([testToInsert])
         .select()
         .single()
 
@@ -284,8 +332,15 @@ export default function UploadPage() {
         throw new Error('ไม่สามารถสร้างชุดข้อสอบได้: ' + testError.message)
       }
 
+      console.log('✅ Test created:', test)
+      console.log('Test ID:', test?.id)
+
+      if (!test || !test.id) {
+        throw new Error('ไม่สามารถรับ Test ID ได้')
+      }
+
       const questionsToInsert = preview.questions.map((q, index) => ({
-        test_id: test.id,
+        test_id: test.id,  // ✅ เปลี่ยนจาก test.test_id เป็น test.id
         question_text: q.question_text,
         question_type: q.question_type || 'multiple_choice',
         choices: q.choices || null,
@@ -293,6 +348,8 @@ export default function UploadPage() {
         explanation: q.explanation || null,
         order_num: q.order_num || index + 1,
       }))
+
+      console.log('📝 Inserting questions:', questionsToInsert.length)
 
       const { error: questionsError } = await supabase
         .from('Question')
@@ -303,8 +360,24 @@ export default function UploadPage() {
         throw new Error('ไม่สามารถเพิ่มข้อสอบได้: ' + questionsError.message)
       }
 
-      alert(`✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory}`)
-      router.push(`/categories/${preview.category}/${preview.subcategory}`)
+      console.log('✅ Questions inserted successfully')
+
+      const successMessage = preview.part 
+        ? `✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory} → ${preview.part}\nชุดที่: ${nextTestNumber}`
+        : `✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory}\nชุดที่: ${nextTestNumber}`
+
+      alert(successMessage)
+
+      // Redirect ตาม category
+      if (preview.category === 'toeic' && preview.part) {
+        // TOEIC with Part
+        const partNumber = preview.part.replace('Part ', 'part-')
+        const subCategoryPath = preview.subcategory.toLowerCase()
+        router.push(`/categories/toeic/${subCategoryPath}/${partNumber}`)
+      } else {
+        // หมวดอื่น ๆ (a-level, customs, pak-kor)
+        router.push(`/categories/${preview.category}/${preview.subcategory}`)
+      }
     } catch (error) {
       console.error('Error:', error)
       alert('❌ เกิดข้อผิดพลาด: ' + (error as Error).message)
@@ -359,7 +432,7 @@ export default function UploadPage() {
                   value={preview.title}
                   onChange={(e) => updatePreviewField('title', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="เช่น: ชุดข้อสอบฟิสิกส์ A-Level"
+                  placeholder="เช่น: TOEIC Part 1 - Photographs Set 1"
                 />
               </div>
 
@@ -389,7 +462,7 @@ export default function UploadPage() {
                     หมวดหมู่ย่อย *
                   </label>
                   <select
-                    value={preview.subcategory || ''}
+                    value={selectedSubcategory}
                     onChange={handleSubcategoryChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   >
@@ -403,19 +476,40 @@ export default function UploadPage() {
                 </div>
               )}
 
+              {/* Part (สำหรับ TOEIC) */}
+              {selectedCategory === 'toeic' && selectedSubcategory && getCurrentParts().length > 0 && (
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                    Part * (สำหรับ TOEIC)
+                  </label>
+                  <select
+                    value={preview.part || ''}
+                    onChange={handlePartChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  >
+                    <option value="">เลือก Part</option>
+                    {getCurrentParts().map((part: any) => (
+                      <option key={part.value} value={part.value}>
+                        {part.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                     ระดับความยาก
                   </label>
                   <select
-                    value={preview.difficulty || 'medium'}
+                    value={preview.difficulty || 'ปานกลาง'}
                     onChange={(e) => updatePreviewField('difficulty', e.target.value)}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                   >
-                    <option value="easy">ง่าย</option>
-                    <option value="medium">ปานกลาง</option>
-                    <option value="hard">ยาก</option>
+                    <option value="ง่าย">ง่าย</option>
+                    <option value="ปานกลาง">ปานกลาง</option>
+                    <option value="ยาก">ยาก</option>
                   </select>
                 </div>
 
@@ -458,13 +552,14 @@ export default function UploadPage() {
                         {CATEGORIES.find(c => c.value === preview.category)?.label} 
                         {' → '}
                         {getCurrentSubcategories().find(s => s.value === preview.subcategory)?.label}
+                        {preview.part && ` → ${preview.part}`}
                       </span>
                     ) : (
                       <span className="text-red-600">ยังไม่ได้เลือก</span>
                     )}
                   </p>
                   <p><strong>จำนวนข้อ:</strong> <span className="text-green-600 font-bold">{preview.questions?.length || 0} ข้อ</span></p>
-                  <p><strong>ระดับความยาก:</strong> {preview.difficulty === 'easy' ? '🟢 ง่าย' : preview.difficulty === 'hard' ? '🔴 ยาก' : '🟡 ปานกลาง'}</p>
+                  <p><strong>ระดับความยาก:</strong> {preview.difficulty === 'ง่าย' ? '🟢 ง่าย' : preview.difficulty === 'ยาก' ? '🔴 ยาก' : '🟡 ปานกลาง'}</p>
                   <p><strong>เวลา:</strong> {preview.time_limit_minutes} นาที</p>
                 </div>
               </div>
@@ -472,7 +567,7 @@ export default function UploadPage() {
               {/* Upload Button */}
               <button
                 onClick={handleUpload}
-                disabled={!preview.category || !preview.subcategory || loading}
+                disabled={!preview.category || !preview.subcategory || (selectedCategory === 'toeic' && !preview.part) || loading}
                 className="w-full px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '🔄 กำลัง Upload...' : '📤 Upload ข้อสอบ'}

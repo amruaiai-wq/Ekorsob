@@ -31,7 +31,7 @@ export default async function GeneralKnowledgePage() {
             ความรู้ทั่วไป
           </h1>
           <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-6">
-            ความรู้ทั่วไป กฎหมาย และเหตุการณ์ปัจจุบัน สำหรับสอบราชการ
+            ความรู้ทั่วไป กฎหมาย และลักษณะการเป็นข้าราชการที่ดี
           </p>
           <div className="h-1 w-32 bg-gradient-to-r from-blue-500 to-cyan-500 mx-auto rounded-full"></div>
         </div>

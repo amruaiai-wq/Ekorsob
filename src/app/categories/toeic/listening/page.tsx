@@ -1,205 +1,242 @@
-// src/app/categories/toeic/listening/page.tsx
-import Link from 'next/link'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+// app/categories/toeic/listening/page.tsx
+import Link from "next/link";
 
-export default async function TOEICListeningPage() {
-  const supabase = await createSupabaseServerClient()
+const listeningParts = [
+  {
+    part: "Part 1",
+    title: "Photographs",
+    titleTh: "ดูรูปภาพและฟังคำบรรยาย",
+    description: "ฟังคำบรรยาย 4 ข้อ เลือกข้อที่ตรงกับรูปภาพที่สุด",
+    questions: "6 ข้อ",
+    icon: "📷",
+    gradient: "from-pink-500 to-rose-500",
+    link: "/categories/toeic/listening/part-1",
+    color: "pink",
+    sets: 0 // จำนวนชุดข้อสอบที่มี
+  },
+  {
+    part: "Part 2",
+    title: "Question-Response",
+    titleTh: "คำถาม-คำตอบ",
+    description: "ฟังคำถาม 1 ข้อ และคำตอบ 3 ข้อ เลือกคำตอบที่เหมาะสมที่สุด",
+    questions: "25 ข้อ",
+    icon: "💬",
+    gradient: "from-orange-500 to-amber-500",
+    link: "/categories/toeic/listening/part-2",
+    color: "orange",
+    sets: 0
+  },
+  {
+    part: "Part 3",
+    title: "Conversations",
+    titleTh: "บทสนทนา",
+    description: "ฟังบทสนทนาระหว่าง 2-3 คน แล้วตอบคำถาม 3 ข้อ",
+    questions: "39 ข้อ",
+    icon: "👥",
+    gradient: "from-cyan-500 to-blue-500",
+    link: "/categories/toeic/listening/part-3",
+    color: "cyan",
+    sets: 0
+  },
+  {
+    part: "Part 4",
+    title: "Talks",
+    titleTh: "การพูดเดี่ยว",
+    description: "ฟังการพูดของคนเดียว เช่น ประกาศ สปีช แล้วตอบคำถาม 3 ข้อ",
+    questions: "30 ข้อ",
+    icon: "🎤",
+    gradient: "from-violet-500 to-purple-500",
+    link: "/categories/toeic/listening/part-4",
+    color: "violet",
+    sets: 0
+  }
+];
 
-  // ดึงข้อสอบ Listening จาก Database
-  const { data: tests, error } = await supabase
-    .from('Tests')
-    .select('id, title, description, difficulty, created_at')
-    .eq('category', 'toeic')
-    .eq('subcategory', 'listening')
-    .order('created_at', { ascending: false })
-
+export default function TOEICListeningPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-gray-900 dark:to-blue-900">
-      <div className="container mx-auto px-6 py-16">
-        {/* Back Button */}
-        <Link 
-          href="/categories/toeic" 
-          className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium mb-8 transition-colors group"
-        >
-          <svg 
-            className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-          กลับไป TOEIC
-        </Link>
-
-        {/* Header Section */}
-        <div className="text-center mb-16">
-          <span className="text-7xl mb-6 inline-block">🎧</span>
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-4">
-            TOEIC Listening
-          </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-6">
-            ฝึกทักษะการฟังภาษาอังกฤษ Part 1-4 พร้อมเฉลยละเอียด
-          </p>
-          <div className="h-1 w-32 bg-gradient-to-r from-blue-500 to-cyan-500 mx-auto rounded-full"></div>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-violet-50 dark:from-gray-900 dark:via-gray-800 dark:to-pink-950">
+      {/* Header Section */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-pink-600 via-rose-600 to-violet-600 dark:from-pink-800 dark:via-rose-800 dark:to-violet-800">
+        {/* Background Decoration */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none opacity-20">
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-white rounded-full mix-blend-overlay filter blur-3xl animate-blob"></div>
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-white rounded-full mix-blend-overlay filter blur-3xl animate-blob animation-delay-2000"></div>
         </div>
 
-        {/* Test Parts Info */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12 max-w-5xl mx-auto">
-          {[
-            { part: 'Part 1', name: 'Photographs', count: '6 ข้อ' },
-            { part: 'Part 2', name: 'Question-Response', count: '25 ข้อ' },
-            { part: 'Part 3', name: 'Conversations', count: '39 ข้อ' },
-            { part: 'Part 4', name: 'Talks', count: '30 ข้อ' },
-          ].map((part, index) => (
-            <div 
+        <div className="relative container mx-auto px-6 py-16 text-center">
+          {/* Back Button */}
+          <Link 
+            href="/categories/toeic"
+            className="inline-flex items-center text-white/90 hover:text-white mb-6 transition-colors group"
+          >
+            <svg className="w-5 h-5 mr-2 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            กลับไปหน้า TOEIC
+          </Link>
+
+          {/* Icon */}
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-white/20 backdrop-blur-sm rounded-3xl mb-6 animate-bounce-slow">
+            <span className="text-5xl">🎧</span>
+          </div>
+
+          {/* Title */}
+          <h1 className="text-4xl md:text-6xl font-extrabold text-white mb-4 drop-shadow-lg">
+            TOEIC Listening
+          </h1>
+          
+          {/* Subtitle */}
+          <p className="text-xl md:text-2xl text-white/90 mb-2 max-w-3xl mx-auto">
+            ฝึกทักษะการฟังภาษาอังกฤษ Part 1-4 พร้อมเฉลยละเอียด
+          </p>
+
+          {/* Stats Badge */}
+          <div className="inline-flex items-center px-6 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mt-4">
+            <span className="text-white font-semibold">
+              รวม 100 ข้อ | 45 นาที
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Parts Grid */}
+      <div className="container mx-auto px-6 py-16">
+        {/* Section Header */}
+        <div className="text-center mb-12">
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3">
+            เลือก Part ที่ต้องการฝึกฝน
+          </h2>
+          <p className="text-lg text-gray-600 dark:text-gray-400">
+            เลือก Part ที่คุณต้องการฝึกฝน แล้วเริ่มทำข้อสอบได้เลย
+          </p>
+          <div className="h-1 w-24 bg-gradient-to-r from-pink-500 to-violet-500 mx-auto rounded-full mt-4"></div>
+        </div>
+
+        {/* Parts Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
+          {listeningParts.map((part, index) => (
+            <Link
               key={part.part}
-              className="bg-white dark:bg-gray-800 rounded-xl p-4 text-center shadow-md transform hover:scale-105 transition-transform"
+              href={part.link}
+              className="group relative animate-fade-in-up"
+              style={{
+                animationDelay: `${index * 150}ms`,
+                animationFillMode: 'both'
+              }}
             >
-              <div className="font-bold text-blue-600 dark:text-blue-400 mb-1">{part.part}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-300 mb-1">{part.name}</div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">{part.count}</div>
-            </div>
+              <div className="relative h-full bg-white dark:bg-gray-800 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 overflow-hidden border-2 border-transparent hover:border-pink-300 dark:hover:border-pink-700 transform hover:-translate-y-2 hover:scale-105">
+                {/* Gradient Background */}
+                <div className={`absolute inset-0 bg-gradient-to-br ${part.gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-500`}></div>
+                
+                {/* Coming Soon or Sets Count Badge */}
+                {part.sets === 0 ? (
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className="px-3 py-1 bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300 text-xs font-bold rounded-full border border-yellow-300 dark:border-yellow-700">
+                      ยังไม่มีข้อสอบ
+                    </span>
+                  </div>
+                ) : (
+                  <div className="absolute top-4 right-4 z-10">
+                    <span className={`px-3 py-1 bg-${part.color}-100 dark:bg-${part.color}-900/50 text-${part.color}-600 dark:text-${part.color}-300 text-xs font-bold rounded-full border border-${part.color}-300 dark:border-${part.color}-700`}>
+                      {part.sets} ชุด
+                    </span>
+                  </div>
+                )}
+
+                {/* Icon Badge */}
+                <div className={`absolute -top-6 -left-6 w-24 h-24 bg-gradient-to-br ${part.gradient} rounded-full flex items-center justify-center shadow-lg transform rotate-12 group-hover:rotate-0 transition-transform duration-500`}>
+                  <span className="text-5xl transform -rotate-12 group-hover:rotate-0 transition-transform duration-500">{part.icon}</span>
+                </div>
+
+                {/* Content */}
+                <div className="relative p-6 pt-16">
+                  {/* Part Number */}
+                  <div className={`inline-block px-4 py-1 bg-gradient-to-r ${part.gradient} text-white text-sm font-bold rounded-full mb-3`}>
+                    {part.part}
+                  </div>
+
+                  {/* Title */}
+                  <h3 className={`text-xl font-bold text-gray-900 dark:text-white mb-2 group-hover:text-${part.color}-600 dark:group-hover:text-${part.color}-400 transition-colors`}>
+                    {part.title}
+                  </h3>
+
+                  {/* Thai Title */}
+                  <p className="text-base font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                    {part.titleTh}
+                  </p>
+                  
+                  {/* Description */}
+                  <p className="text-gray-600 dark:text-gray-400 mb-4 leading-relaxed min-h-[4.5rem] text-sm">
+                    {part.description}
+                  </p>
+
+                  {/* Questions Count */}
+                  <div className={`inline-flex items-center px-4 py-2 bg-${part.color}-50 dark:bg-${part.color}-900/30 rounded-full text-sm font-semibold text-${part.color}-600 dark:text-${part.color}-300 mb-6`}>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                    {part.questions}
+                  </div>
+
+                  {/* Arrow */}
+                  <div className={`flex items-center text-${part.color}-600 dark:text-${part.color}-400 font-semibold group-hover:text-${part.color}-700 dark:group-hover:text-${part.color}-300`}>
+                    <span className="mr-2">{part.sets > 0 ? 'เริ่มทำข้อสอบ' : 'เข้าดูรายละเอียด'}</span>
+                    <svg 
+                      className="w-5 h-5 transform group-hover:translate-x-2 transition-transform duration-300" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Shine Effect */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 dark:via-white/10 to-transparent transform -skew-x-12 translate-x-[-100%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
+                </div>
+              </div>
+            </Link>
           ))}
         </div>
 
-        {/* Tests List */}
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
-              ชุดข้อสอบทั้งหมด ({tests?.length || 0})
-            </h2>
-            
-            {/* Filter - จะทำในอนาคต */}
-            <div className="flex gap-2">
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition">
-                ทั้งหมด
-              </button>
-              <button className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition">
-                ง่าย
-              </button>
-              <button className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition">
-                ปานกลาง
-              </button>
-              <button className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition">
-                ยาก
-              </button>
+        {/* Info Section */}
+        <div className="max-w-4xl mx-auto mt-16 p-8 bg-gradient-to-r from-pink-50 to-violet-50 dark:from-pink-900/20 dark:to-violet-900/20 rounded-3xl border border-pink-200 dark:border-pink-800">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0">
+              <div className="w-12 h-12 bg-gradient-to-r from-pink-500 to-violet-500 rounded-2xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                💡 เคล็ดลับการฝึกฝน TOEIC Listening
+              </h3>
+              <ul className="space-y-2 text-gray-700 dark:text-gray-300">
+                <li className="flex items-start">
+                  <span className="text-pink-500 mr-2">•</span>
+                  <span><strong>Part 1:</strong> จดจ่อกับรายละเอียดในภาพ (คน, สิ่งของ, สถานที่, การกระทำ)</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-orange-500 mr-2">•</span>
+                  <span><strong>Part 2:</strong> ฟัง Wh-question ให้ชัด (Who, What, When, Where, Why, How)</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-cyan-500 mr-2">•</span>
+                  <span><strong>Part 3:</strong> อ่านคำถามก่อนฟัง จะได้รู้ว่าต้องจับประเด็นอะไร</span>
+                </li>
+                <li className="flex items-start">
+                  <span className="text-violet-500 mr-2">•</span>
+                  <span><strong>Part 4:</strong> จับใจความสำคัญ และฟัง key words ที่เกี่ยวข้องกับคำถาม</span>
+                </li>
+              </ul>
             </div>
           </div>
-
-          {/* Tests Grid */}
-          {error ? (
-            <div className="text-center py-20 bg-red-50 dark:bg-red-900/20 rounded-3xl">
-              <span className="text-6xl mb-4 inline-block">⚠️</span>
-              <p className="text-red-600 dark:text-red-400 text-lg">
-                เกิดข้อผิดพลาดในการโหลดข้อสอบ
-              </p>
-            </div>
-          ) : tests && tests.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {tests.map((test, index) => (
-                <Link
-                  key={test.id}
-                  href={`/test/${test.id}`}
-                  className="group"
-                >
-                  <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border-2 border-transparent hover:border-blue-400 dark:hover:border-blue-600 transform hover:-translate-y-2">
-                    {/* Test Number Badge */}
-                    <div className="flex items-center justify-between mb-4">
-                      <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300 rounded-full text-sm font-bold">
-                        ชุดที่ {index + 1}
-                      </span>
-                      
-                      {/* Difficulty Badge */}
-                      {test.difficulty && (
-                        <DifficultyBadge level={test.difficulty as 'easy' | 'medium' | 'hard'} />
-                      )}
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                      {test.title || `TOEIC Listening Test ${index + 1}`}
-                    </h3>
-
-                    {/* Description */}
-                    {test.description && (
-                      <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-2">
-                        {test.description}
-                      </p>
-                    )}
-
-                    {/* Footer */}
-                    <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        100 คำถาม
-                      </span>
-                      <div className="flex items-center text-blue-600 dark:text-blue-400 font-semibold text-sm">
-                        เริ่มทำข้อสอบ
-                        <svg 
-                          className="w-4 h-4 ml-1 transform group-hover:translate-x-1 transition-transform" 
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-gray-50 dark:bg-gray-800/50 rounded-3xl">
-              <span className="text-6xl mb-4 inline-block">📭</span>
-              <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                ยังไม่มีข้อสอบในส่วนนี้
-              </h3>
-              <p className="text-gray-600 dark:text-gray-300">
-                กำลังเพิ่มข้อสอบเร็ว ๆ นี้
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Upload Section (สำหรับ Admin - จะทำใน Phase ต่อไป) */}
-        <div className="mt-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-3xl p-8 text-white text-center shadow-xl max-w-5xl mx-auto">
-          <h3 className="text-2xl font-bold mb-3">💡 Tips สำหรับการฝึก Listening</h3>
-          <p className="text-indigo-100 text-lg max-w-2xl mx-auto">
-            ฟังทีละ Part แล้วทำข้อสอบทันที เพื่อความเข้าใจที่ดีที่สุด
-          </p>
         </div>
       </div>
     </div>
-  )
-}
-
-// Difficulty Badge Component
-function DifficultyBadge({ level }: { level: 'easy' | 'medium' | 'hard' }) {
-  const configs = {
-    easy: {
-      label: 'ง่าย',
-      icon: '🟢',
-      className: 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300'
-    },
-    medium: {
-      label: 'ปานกลาง',
-      icon: '🟡',
-      className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300'
-    },
-    hard: {
-      label: 'ยาก',
-      icon: '🔴',
-      className: 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300'
-    }
-  }
-
-  const config = configs[level] || configs.medium
-
-  return (
-    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${config.className}`}>
-      <span className="mr-1">{config.icon}</span>
-      {config.label}
-    </span>
-  )
+  );
 }

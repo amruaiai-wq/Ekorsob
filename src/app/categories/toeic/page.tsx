@@ -26,7 +26,7 @@ export default function TOEICCategoryPage() {
       <div className="container mx-auto px-6 py-16">
         {/* Back Button */}
         <Link 
-          href="/" 
+          href="/app" 
           className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 font-medium mb-8 transition-colors group"
         >
           <svg 

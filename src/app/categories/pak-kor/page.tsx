@@ -6,7 +6,7 @@ const subcategories = [
     name: 'ความรู้ทั่วไป',
     slug: 'general-knowledge',
     icon: '📚',
-    description: 'ความรู้ทั่วไป กฎหมาย และเหตุการณ์ปัจจุบัน',
+    description: 'ความรู้ทั่วไป กฎหมาย และลักษณะการเป็นข้าราชการที่ดี',
     stats: 'กำลังเพิ่มข้อสอบ',
     color: 'from-blue-500 to-cyan-500',
   },
@@ -19,18 +19,10 @@ const subcategories = [
     color: 'from-purple-500 to-pink-500',
   },
   {
-    name: 'ภาษาไทย',
-    slug: 'thai',
-    icon: '🇹🇭',
-    description: 'ทักษะการใช้ภาษาไทย ไวยากรณ์ และการเขียน',
-    stats: 'กำลังเพิ่มข้อสอบ',
-    color: 'from-green-500 to-emerald-500',
-  },
-  {
     name: 'ภาษาอังกฤษ',
     slug: 'english',
     icon: '🇬🇧',
-    description: 'ทักษะภาษาอังกฤษ Grammar และ Vocabulary',
+    description: 'ทักษะภาษาอังกฤษ Conversation, Grammar, Vocabulary และ Reading',
     stats: 'กำลังเพิ่มข้อสอบ',
     color: 'from-indigo-500 to-blue-500',
   },
@@ -71,15 +63,15 @@ export default function PakKorCategoryPage() {
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-4xl mx-auto">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg text-center transform hover:scale-105 transition-transform">
-            <div className="text-4xl font-bold text-purple-600 dark:text-purple-400 mb-2">4</div>
+            <div className="text-4xl font-bold text-purple-600 dark:text-purple-400 mb-2">3</div>
             <div className="text-gray-600 dark:text-gray-300">หมวดวิชา</div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg text-center transform hover:scale-105 transition-transform">
-            <div className="text-4xl font-bold text-pink-600 dark:text-pink-400 mb-2">150</div>
+            <div className="text-4xl font-bold text-pink-600 dark:text-pink-400 mb-2">30</div>
             <div className="text-gray-600 dark:text-gray-300">ข้อต่อชุด</div>
           </div>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg text-center transform hover:scale-105 transition-transform">
-            <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">180</div>
+            <div className="text-4xl font-bold text-green-600 dark:text-green-400 mb-2">60</div>
             <div className="text-gray-600 dark:text-gray-300">นาที</div>
           </div>
         </div>
