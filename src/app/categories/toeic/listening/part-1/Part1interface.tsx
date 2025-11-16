@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import Timer from './Timer';
+import Timer from '@/components/Timer';
 
 interface Part1Question {
   id: string;

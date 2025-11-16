@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Timer from './Timer';
+import Timer from '@/components/Timer';
 import QuestionNavigation from './QuestionNavigation';
 
 // Passage มี 4 คำถาม
