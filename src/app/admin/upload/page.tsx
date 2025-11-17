@@ -12,6 +12,9 @@ interface Question {
   correct_answer: string
   explanation: string | null
   order_num: number
+  part?: string | null
+  passage?: string | null
+  blank_number?: number | null
 }
 
 interface TestData {
@@ -123,29 +126,40 @@ export default function UploadPage() {
             
             const questions: Question[] = []
             
+            // ⭐ แก้ไขการอ่าน Excel ให้รองรับ 11 columns
             for (let i = 1; i < jsonData.length; i++) {
               const row = jsonData[i]
-              if (!row[1]) continue
+              
+              // ข้ามแถวว่าง
+              if (!row || row.length === 0) continue
+              
+              // ตรวจสอบว่ามีข้อมูลหลักไหม
+              const questionText = row[3]?.toString().trim() // column D
+              if (!questionText) continue
               
               const choices = [
-                row[2]?.toString() || '',
-                row[3]?.toString() || '',
-                row[4]?.toString() || '',
-                row[5]?.toString() || '',
+                row[5]?.toString().trim() || '',  // F: choice_a
+                row[6]?.toString().trim() || '',  // G: choice_b  
+                row[7]?.toString().trim() || '',  // H: choice_c
+                row[8]?.toString().trim() || '',  // I: choice_d
               ]
 
+              // ตรวจสอบว่ามี choices ครบ
+              if (!choices.every(c => c)) continue
+
               const question: Question = {
-                question_text: row[1]?.toString() || '',
+                order_num: parseInt(row[0]?.toString()) || i,  // A: order_num
+                part: row[1]?.toString().trim() || null,       // B: part
+                passage: row[2]?.toString().trim() || null,    // C: passage
+                question_text: questionText,                   // D: question_text
+                blank_number: row[4] ? parseInt(row[4].toString()) : null, // E: blank_number
                 question_type: 'multiple_choice',
                 choices: choices,
-                correct_answer: row[6]?.toString() || '1',
-                explanation: row[7]?.toString() || null,
-                order_num: i
+                correct_answer: row[9]?.toString().trim() || '1', // J: correct_answer
+                explanation: row[10]?.toString().trim() || null,  // K: explanation
               }
               
-              if (question.question_text && question.choices && question.choices.every(c => c)) {
-                questions.push(question)
-              }
+              questions.push(question)
             }
 
             if (questions.length === 0) {
@@ -205,21 +219,14 @@ export default function UploadPage() {
           }
         }
         reader.readAsText(selectedFile)
-      } 
-      else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-        setFileType('excel')
-        const testData = await parseExcelOrCSV(selectedFile)
-        if (testData) setPreview(testData)
-        else setFile(null)
-      }
-      else if (fileName.endsWith('.csv')) {
-        setFileType('csv')
-        const testData = await parseExcelOrCSV(selectedFile)
-        if (testData) setPreview(testData)
-        else setFile(null)
-      }
-      else {
-        alert('❌ ประเภทไฟล์ไม่ถูกต้อง')
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
+        setFileType(fileName.endsWith('.csv') ? 'csv' : 'excel')
+        const parsedData = await parseExcelOrCSV(selectedFile)
+        if (parsedData) {
+          setPreview(parsedData)
+        }
+      } else {
+        alert('❌ รองรับเฉพาะไฟล์ .json, .xlsx, .xls, .csv')
         setFile(null)
       }
     } catch (error) {
@@ -228,9 +235,48 @@ export default function UploadPage() {
     }
   }
 
-  const updatePreviewField = (field: keyof TestData, value: any) => {
-    if (!preview) return
-    setPreview({ ...preview, [field]: value })
+  const updatePreviewField = (field: string, value: any) => {
+    if (preview) {
+      setPreview({...preview, [field]: value})
+    }
+  }
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const categoryValue = e.target.value
+    setSelectedCategory(categoryValue)
+    setSelectedSubcategory('')
+    
+    if (preview) {
+      setPreview({
+        ...preview,
+        category: categoryValue,
+        subcategory: '',
+        part: ''
+      })
+    }
+  }
+
+  const handleSubcategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const subcategoryValue = e.target.value
+    setSelectedSubcategory(subcategoryValue)
+    
+    if (preview) {
+      setPreview({
+        ...preview,
+        subcategory: subcategoryValue,
+        part: ''
+      })
+    }
+  }
+
+  const handlePartChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const partValue = e.target.value
+    if (preview) {
+      setPreview({
+        ...preview,
+        part: partValue
+      })
+    }
   }
 
   const getCurrentSubcategories = () => {
@@ -240,90 +286,47 @@ export default function UploadPage() {
 
   const getCurrentParts = () => {
     const category = CATEGORIES.find(c => c.value === selectedCategory)
-    const subcategory = category?.subcategories.find(s => s.value === selectedSubcategory)
+    const subcategory = category?.subcategories.find((s: any) => s.value === selectedSubcategory)
     return (subcategory as any)?.parts || []
   }
 
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    setSelectedCategory(value)
-    setSelectedSubcategory('')
-    if (preview) {
-      setPreview({
-        ...preview,
-        category: value,
-        subcategory: '',
-        part: ''
-      })
-    }
-  }
-
-  const handleSubcategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    setSelectedSubcategory(value)
-    if (preview) {
-      setPreview({
-        ...preview,
-        subcategory: value,
-        part: ''
-      })
-    }
-  }
-
-  const handlePartChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value
-    if (preview) {
-      setPreview({
-        ...preview,
-        part: value
-      })
-    }
-  }
-
   const handleUpload = async () => {
-    if (!preview || !preview.category || !preview.subcategory) {
-      alert('❌ กรุณากรอกข้อมูลให้ครบถ้วน')
+    if (!preview) {
+      alert('❌ กรุณาเลือกไฟล์')
       return
     }
 
-    // สำหรับ TOEIC ต้องมี Part
-    if (preview.category === 'toeic' && !preview.part) {
-      alert('❌ กรุณาเลือก Part สำหรับข้อสอบ TOEIC')
+    if (!preview.title || preview.title === 'ชุดข้อสอบจากไฟล์') {
+      alert('❌ กรุณาระบุชื่อชุดข้อสอบ')
+      return
+    }
+
+    if (!preview.category || !preview.subcategory) {
+      alert('❌ กรุณาเลือกหมวดหมู่หลักและหมวดหมู่ย่อย')
       return
     }
 
     setLoading(true)
 
     try {
-      // หาเลข test_number ถัดไป
-      const { data: existingTests } = await supabase
-        .from('Tests')
-        .select('test_number')
-        .eq('category', preview.category)
-        .eq('subcategory', preview.subcategory)
-        .eq('part', preview.part || '')
-        .order('test_number', { ascending: false })
-        .limit(1)
-
-      const nextTestNumber = existingTests && existingTests.length > 0 
-        ? (existingTests[0].test_number || 0) + 1 
-        : 1
-
-      const testToInsert = {
-        title: preview.title,
-        description: preview.description || null,
-        category: preview.category,
-        subcategory: preview.subcategory,
-        part: preview.part || null,
-        difficulty: preview.difficulty || 'ปานกลาง',
-        total_questions: preview.questions.length,
-        test_number: nextTestNumber,
-        is_active: true
+      if (!preview.questions || preview.questions.length === 0) {
+        throw new Error('ไม่มีข้อสอบในไฟล์')
       }
 
       const { data: test, error: testError } = await supabase
         .from('Tests')
-        .insert([testToInsert])
+        .insert({
+          title: preview.title,
+          description: preview.description || null,
+          category: preview.category,
+          subcategory: preview.subcategory,
+          part: preview.part || null,
+          difficulty: preview.difficulty || 'medium',
+          time_limit_minutes: preview.time_limit_minutes || 60,
+          total_questions: preview.questions.length,
+          is_premium: false,
+          is_active: true
+        })
         .select()
         .single()
 
@@ -332,24 +335,18 @@ export default function UploadPage() {
         throw new Error('ไม่สามารถสร้างชุดข้อสอบได้: ' + testError.message)
       }
 
-      console.log('✅ Test created:', test)
-      console.log('Test ID:', test?.id)
-
-      if (!test || !test.id) {
-        throw new Error('ไม่สามารถรับ Test ID ได้')
-      }
-
       const questionsToInsert = preview.questions.map((q, index) => ({
-        test_id: test.id,  // ✅ เปลี่ยนจาก test.test_id เป็น test.id
+        test_id: test.id,
         question_text: q.question_text,
         question_type: q.question_type || 'multiple_choice',
         choices: q.choices || null,
         correct_answer: q.correct_answer,
         explanation: q.explanation || null,
         order_num: q.order_num || index + 1,
+        part: q.part || null,
+        passage: q.passage || null,
+        blank_number: q.blank_number || null,
       }))
-
-      console.log('📝 Inserting questions:', questionsToInsert.length)
 
       const { error: questionsError } = await supabase
         .from('Question')
@@ -360,24 +357,8 @@ export default function UploadPage() {
         throw new Error('ไม่สามารถเพิ่มข้อสอบได้: ' + questionsError.message)
       }
 
-      console.log('✅ Questions inserted successfully')
-
-      const successMessage = preview.part 
-        ? `✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory} → ${preview.part}\nชุดที่: ${nextTestNumber}`
-        : `✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory}\nชุดที่: ${nextTestNumber}`
-
-      alert(successMessage)
-
-      // Redirect ตาม category
-      if (preview.category === 'toeic' && preview.part) {
-        // TOEIC with Part
-        const partNumber = preview.part.replace('Part ', 'part-')
-        const subCategoryPath = preview.subcategory.toLowerCase()
-        router.push(`/categories/toeic/${subCategoryPath}/${partNumber}`)
-      } else {
-        // หมวดอื่น ๆ (a-level, customs, pak-kor)
-        router.push(`/categories/${preview.category}/${preview.subcategory}`)
-      }
+      alert(`✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory}`)
+      router.push(`/categories/${preview.category}/${preview.subcategory}`)
     } catch (error) {
       console.error('Error:', error)
       alert('❌ เกิดข้อผิดพลาด: ' + (error as Error).message)
@@ -432,7 +413,7 @@ export default function UploadPage() {
                   value={preview.title}
                   onChange={(e) => updatePreviewField('title', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="เช่น: TOEIC Part 1 - Photographs Set 1"
+                  placeholder="เช่น: ข้อสอบ ก.พ. ภาค ก. ภาษาอังกฤษ ชุดที่ 1"
                 />
               </div>
 

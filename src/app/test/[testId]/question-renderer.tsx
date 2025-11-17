@@ -42,14 +42,24 @@ export default function QuestionRenderer({
           return;
         }
 
-        setQuestions(questionsData);
-        setAnswers(new Array(questionsData.length).fill(null));
+        // ⭐ แปลง choices เป็น array
+        const formattedQuestions = questionsData.map(q => ({
+          ...q,
+          choices: Array.isArray(q.choices) 
+            ? q.choices 
+            : typeof q.choices === 'string'
+            ? q.choices.split(',').map((s: string) => s.trim())
+            : []
+        }));
+
+        setQuestions(formattedQuestions);
+        setAnswers(new Array(formattedQuestions.length).fill(null));
 
         const { data: attemptData, error: attemptError } = await supabase
           .from('TestAttempt')
           .insert({
             test_id: testId,
-            total_questions: questionsData.length,
+            total_questions: formattedQuestions.length,
             start_time: new Date().toISOString(),
             is_completed: false
           })

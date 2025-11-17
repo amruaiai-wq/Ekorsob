@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import Timer from '@/components/Timer';
-import QuestionNavigation from './QuestionNavigation';
+import QuestionNavigation from '@/components/QuestionNavigation';
 
 // Passage มี 4 คำถาม
 interface Passage {
