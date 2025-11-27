@@ -126,40 +126,125 @@ export default function UploadPage() {
             
             const questions: Question[] = []
             
-            // ⭐ แก้ไขการอ่าน Excel ให้รองรับ 11 columns
-            for (let i = 1; i < jsonData.length; i++) {
-              const row = jsonData[i]
+            // ตรวจสอบจำนวนคอลัมน์จาก header row
+            const headerRow = jsonData[0]
+            const columnCount = headerRow ? headerRow.length : 0
+            
+            console.log('📊 Detected columns:', columnCount)
+            console.log('📋 Headers:', headerRow)
+            
+            // ตรวจสอบว่าเป็น header ภาษาไทยหรือภาษาอังกฤษ
+            const isThaiHeader = headerRow && headerRow[0]?.toString().includes('ลำดับ')
+            console.log('🌏 Language:', isThaiHeader ? 'Thai' : 'English')
+            
+            if (isThaiHeader) {
+              // ไฟล์ภาษาไทย (9-10 columns)
+              console.log('🎯 Using Thai format parser')
               
-              // ข้ามแถวว่าง
-              if (!row || row.length === 0) continue
-              
-              // ตรวจสอบว่ามีข้อมูลหลักไหม
-              const questionText = row[3]?.toString().trim() // column D
-              if (!questionText) continue
-              
-              const choices = [
-                row[5]?.toString().trim() || '',  // F: choice_a
-                row[6]?.toString().trim() || '',  // G: choice_b  
-                row[7]?.toString().trim() || '',  // H: choice_c
-                row[8]?.toString().trim() || '',  // I: choice_d
-              ]
+              for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i]
+                
+                if (!row || row.length === 0) continue
+                
+                const questionText = row[1]?.toString().trim()
+                if (!questionText) continue
+                
+                // รองรับทั้ง 4 และ 5 ตัวเลือก
+                const choices = []
+                for (let j = 2; j < Math.min(7, row.length - 2); j++) {
+                  const choice = row[j]?.toString().trim()
+                  if (choice) choices.push(choice)
+                }
 
-              // ตรวจสอบว่ามี choices ครบ
-              if (!choices.every(c => c)) continue
+                if (choices.length === 0) continue
 
-              const question: Question = {
-                order_num: parseInt(row[0]?.toString()) || i,  // A: order_num
-                part: row[1]?.toString().trim() || null,       // B: part
-                passage: row[2]?.toString().trim() || null,    // C: passage
-                question_text: questionText,                   // D: question_text
-                blank_number: row[4] ? parseInt(row[4].toString()) : null, // E: blank_number
-                question_type: 'multiple_choice',
-                choices: choices,
-                correct_answer: row[9]?.toString().trim() || '1', // J: correct_answer
-                explanation: row[10]?.toString().trim() || null,  // K: explanation
+                const correctAnswerIndex = columnCount === 9 ? 7 : 6 // ตัวเลือก 5 ตัว vs 4 ตัว
+                const explanationIndex = columnCount === 9 ? 8 : 7
+
+                const question: Question = {
+                  order_num: parseInt(row[0]?.toString()) || i,
+                  question_text: questionText,
+                  question_type: 'multiple_choice',
+                  choices: choices,
+                  correct_answer: row[correctAnswerIndex]?.toString().trim() || '1',
+                  explanation: row[explanationIndex]?.toString().trim() || null,
+                  part: null,
+                  passage: null,
+                  blank_number: null,
+                }
+                
+                questions.push(question)
               }
+            } else if (columnCount >= 10) {
+              // TOEIC Format (11 columns)
+              console.log('🎯 Using TOEIC format parser (11 columns)')
               
-              questions.push(question)
+              for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i]
+                
+                if (!row || row.length === 0) continue
+                
+                const questionText = row[3]?.toString().trim()
+                if (!questionText) continue
+                
+                const choices = [
+                  row[5]?.toString().trim() || '',
+                  row[6]?.toString().trim() || '',
+                  row[7]?.toString().trim() || '',
+                  row[8]?.toString().trim() || '',
+                ]
+
+                if (!choices.every(c => c)) continue
+
+                const question: Question = {
+                  order_num: parseInt(row[0]?.toString()) || i,
+                  part: row[1]?.toString().trim() || null,
+                  passage: row[2]?.toString().trim() || null,
+                  question_text: questionText,
+                  blank_number: row[4] ? parseInt(row[4].toString()) : null,
+                  question_type: 'multiple_choice',
+                  choices: choices,
+                  correct_answer: row[9]?.toString().trim() || '1',
+                  explanation: row[10]?.toString().trim() || null,
+                }
+                
+                questions.push(question)
+              }
+            } else {
+              // Standard Format (8 columns) - A-Level, ก.พ., ศุลกากร
+              console.log('🎯 Using Standard format parser (8 columns)')
+              
+              for (let i = 1; i < jsonData.length; i++) {
+                const row = jsonData[i]
+                
+                if (!row || row.length === 0) continue
+                
+                const questionText = row[1]?.toString().trim()
+                if (!questionText) continue
+                
+                const choices = [
+                  row[2]?.toString().trim() || '',
+                  row[3]?.toString().trim() || '',
+                  row[4]?.toString().trim() || '',
+                  row[5]?.toString().trim() || '',
+                ]
+
+                if (!choices.every(c => c)) continue
+
+                const question: Question = {
+                  order_num: parseInt(row[0]?.toString()) || i,
+                  question_text: questionText,
+                  question_type: 'multiple_choice',
+                  choices: choices,
+                  correct_answer: row[6]?.toString().trim() || '1',
+                  explanation: row[7]?.toString().trim() || null,
+                  part: null,
+                  passage: null,
+                  blank_number: null,
+                }
+                
+                questions.push(question)
+              }
             }
 
             if (questions.length === 0) {
@@ -167,6 +252,9 @@ export default function UploadPage() {
               resolve(null)
               return
             }
+
+            console.log('✅ Parsed questions:', questions.length)
+            console.log('📝 Sample question:', questions[0])
 
             const testData: TestData = {
               title: 'ชุดข้อสอบจากไฟล์',
@@ -201,76 +289,76 @@ export default function UploadPage() {
     if (!selectedFile) return
 
     setFile(selectedFile)
-    setPreview(null)
-    
     const fileName = selectedFile.name.toLowerCase()
 
-    try {
-      if (fileName.endsWith('.json')) {
-        setFileType('json')
-        const reader = new FileReader()
-        reader.onload = (event) => {
-          try {
-            const json = JSON.parse(event.target?.result as string)
-            setPreview(json)
-          } catch (error) {
-            alert('❌ ไฟล์ JSON ไม่ถูกต้อง')
-            setFile(null)
-          }
+    // ตรวจสอบประเภทไฟล์
+    if (fileName.endsWith('.json')) {
+      setFileType('json')
+      // อ่าน JSON
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        try {
+          const jsonData = JSON.parse(event.target?.result as string)
+          setPreview(jsonData)
+        } catch (error) {
+          alert('❌ ไฟล์ JSON ไม่ถูกต้อง')
         }
-        reader.readAsText(selectedFile)
-      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
-        setFileType(fileName.endsWith('.csv') ? 'csv' : 'excel')
-        const parsedData = await parseExcelOrCSV(selectedFile)
-        if (parsedData) {
-          setPreview(parsedData)
-        }
-      } else {
-        alert('❌ รองรับเฉพาะไฟล์ .json, .xlsx, .xls, .csv')
-        setFile(null)
       }
-    } catch (error) {
-      alert('❌ เกิดข้อผิดพลาดในการอ่านไฟล์')
-      setFile(null)
+      reader.readAsText(selectedFile)
+    } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls') || fileName.endsWith('.csv')) {
+      setFileType(fileName.endsWith('.csv') ? 'csv' : 'excel')
+      const parsedData = await parseExcelOrCSV(selectedFile)
+      if (parsedData) {
+        setPreview(parsedData)
+      }
     }
   }
 
-  const updatePreviewField = (field: string, value: any) => {
-    if (preview) {
-      setPreview({...preview, [field]: value})
-    }
+  const updatePreviewField = (field: keyof TestData, value: any) => {
+    if (!preview) return
+    setPreview({ ...preview, [field]: value })
   }
 
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const categoryValue = e.target.value
+    console.log('🔄 Category changed:', categoryValue)
     setSelectedCategory(categoryValue)
     setSelectedSubcategory('')
     
+    // Update preview ทันที
     if (preview) {
-      setPreview({
+      const updatedPreview = {
         ...preview,
         category: categoryValue,
         subcategory: '',
-        part: ''
-      })
+        part: undefined
+      }
+      console.log('📋 Updated preview:', updatedPreview)
+      setPreview(updatedPreview)
     }
   }
 
   const handleSubcategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const subcategoryValue = e.target.value
+    console.log('🔄 Subcategory changed:', subcategoryValue)
     setSelectedSubcategory(subcategoryValue)
     
+    // Update preview ทันที
     if (preview) {
-      setPreview({
+      const updatedPreview = {
         ...preview,
         subcategory: subcategoryValue,
-        part: ''
-      })
+        part: undefined
+      }
+      console.log('📋 Updated preview:', updatedPreview)
+      setPreview(updatedPreview)
     }
   }
 
   const handlePartChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const partValue = e.target.value
+    
+    // Update preview ทันที
     if (preview) {
       setPreview({
         ...preview,
@@ -291,84 +379,70 @@ export default function UploadPage() {
   }
 
   const handleUpload = async () => {
-    if (!preview) {
-      alert('❌ กรุณาเลือกไฟล์')
+    if (!preview || !selectedCategory || !selectedSubcategory) {
+      alert('❌ กรุณาเลือกหมวดหมู่และหมวดหมู่ย่อย')
       return
     }
 
-    if (!preview.title || preview.title === 'ชุดข้อสอบจากไฟล์') {
-      alert('❌ กรุณาระบุชื่อชุดข้อสอบ')
-      return
-    }
-
-    if (!preview.category || !preview.subcategory) {
-      alert('❌ กรุณาเลือกหมวดหมู่หลักและหมวดหมู่ย่อย')
+    if (selectedCategory === 'toeic' && !preview.part) {
+      alert('❌ กรุณาเลือก Part สำหรับ TOEIC')
       return
     }
 
     setLoading(true)
 
     try {
-      if (!preview.questions || preview.questions.length === 0) {
-        throw new Error('ไม่มีข้อสอบในไฟล์')
-      }
-
-      const { data: test, error: testError } = await supabase
+      // 1. Insert Test (ใช้ selectedCategory และ selectedSubcategory เพื่อความแน่นอน)
+      const { data: testData, error: testError } = await supabase
         .from('Tests')
         .insert({
           title: preview.title,
-          description: preview.description || null,
-          category: preview.category,
-          subcategory: preview.subcategory,
+          description: preview.description || '',
+          category: selectedCategory,
+          subcategory: selectedSubcategory,
           part: preview.part || null,
-          difficulty: preview.difficulty || 'medium',
+          difficulty: preview.difficulty || 'ปานกลาง',
           time_limit_minutes: preview.time_limit_minutes || 60,
+          test_number: preview.test_number || 1,
           total_questions: preview.questions.length,
-          is_premium: false,
-          is_active: true
         })
         .select()
         .single()
 
-      if (testError) {
-        console.error('Test insert error:', testError)
-        throw new Error('ไม่สามารถสร้างชุดข้อสอบได้: ' + testError.message)
-      }
+      if (testError) throw testError
 
-      const questionsToInsert = preview.questions.map((q, index) => ({
-        test_id: test.id,
+      // 2. Insert Questions
+      const questionsToInsert = preview.questions.map((q) => ({
+        test_id: testData.id,
         question_text: q.question_text,
-        question_type: q.question_type || 'multiple_choice',
-        choices: q.choices || null,
+        question_type: q.question_type,
+        choices: q.choices,
         correct_answer: q.correct_answer,
-        explanation: q.explanation || null,
-        order_num: q.order_num || index + 1,
-        part: q.part || null,
-        passage: q.passage || null,
-        blank_number: q.blank_number || null,
+        explanation: q.explanation,
+        order_num: q.order_num,
+        part: q.part,
+        passage: q.passage,
+        blank_number: q.blank_number,
       }))
 
       const { error: questionsError } = await supabase
         .from('Question')
         .insert(questionsToInsert)
 
-      if (questionsError) {
-        console.error('Questions insert error:', questionsError)
-        throw new Error('ไม่สามารถเพิ่มข้อสอบได้: ' + questionsError.message)
-      }
+      if (questionsError) throw questionsError
 
-      alert(`✅ Upload สำเร็จ!\nเพิ่มข้อสอบ ${preview.questions.length} ข้อ\nหมวดหมู่: ${preview.category} → ${preview.subcategory}`)
-      router.push(`/categories/${preview.category}/${preview.subcategory}`)
-    } catch (error) {
-      console.error('Error:', error)
-      alert('❌ เกิดข้อผิดพลาด: ' + (error as Error).message)
+      alert('✅ Upload สำเร็จ!')
+      router.push('/admin')
+    } catch (error: any) {
+      console.error('Upload error:', error)
+      alert(`❌ เกิดข้อผิดพลาด: ${error.message}`)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="container mx-auto py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 py-12 px-4">
       <div className="max-w-4xl mx-auto">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
           📤 อัพโหลดข้อสอบ
@@ -413,7 +487,7 @@ export default function UploadPage() {
                   value={preview.title}
                   onChange={(e) => updatePreviewField('title', e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  placeholder="เช่น: ข้อสอบ ก.พ. ภาค ก. ภาษาอังกฤษ ชุดที่ 1"
+                  placeholder="เช่น: ข้อสอบ A-Level ภาษาไทย 2567"
                 />
               </div>
 
@@ -528,13 +602,15 @@ export default function UploadPage() {
                   <p><strong>ชื่อ:</strong> {preview.title}</p>
                   <p>
                     <strong>หมวดหมู่:</strong>{' '}
-                    {preview.category && preview.subcategory ? (
+                    {selectedCategory && selectedSubcategory ? (
                       <span className="text-green-600 dark:text-green-400 font-semibold">
-                        {CATEGORIES.find(c => c.value === preview.category)?.label} 
+                        {CATEGORIES.find(c => c.value === selectedCategory)?.label} 
                         {' → '}
-                        {getCurrentSubcategories().find(s => s.value === preview.subcategory)?.label}
+                        {getCurrentSubcategories().find(s => s.value === selectedSubcategory)?.label}
                         {preview.part && ` → ${preview.part}`}
                       </span>
+                    ) : selectedCategory ? (
+                      <span className="text-yellow-600">กรุณาเลือกหมวดหมู่ย่อย</span>
                     ) : (
                       <span className="text-red-600">ยังไม่ได้เลือก</span>
                     )}
@@ -548,7 +624,7 @@ export default function UploadPage() {
               {/* Upload Button */}
               <button
                 onClick={handleUpload}
-                disabled={!preview.category || !preview.subcategory || (selectedCategory === 'toeic' && !preview.part) || loading}
+                disabled={!selectedCategory || !selectedSubcategory || (selectedCategory === 'toeic' && !preview.part) || loading}
                 className="w-full px-6 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '🔄 กำลัง Upload...' : '📤 Upload ข้อสอบ'}
@@ -560,6 +636,11 @@ export default function UploadPage() {
           {!preview && (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <p>📁 กรุณาเลือกไฟล์ข้อสอบ (.json, .xlsx, .csv)</p>
+              <div className="mt-4 text-xs space-y-1">
+                <p>✅ รองรับ 2 รูปแบบ:</p>
+                <p>• Standard format (8 columns) - สำหรับ A-Level, ก.พ., ศุลกากร</p>
+                <p>• TOEIC format (11 columns) - มี part, passage, blank_number</p>
+              </div>
             </div>
           )}
         </div>

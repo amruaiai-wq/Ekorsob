@@ -22,7 +22,7 @@ export default async function PakKorEnglishPage() {
       color="indigo"
       tests={tests || []}
       error={error}
-      questionCount={150}
+      questionCount={25}
     />
   )
 }
