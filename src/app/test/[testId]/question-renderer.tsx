@@ -12,6 +12,27 @@ interface Question {
   explanation?: string;
 }
 
+// ⭐ Helper function: แปลง correct_answer เป็น index (0-based)
+// รองรับทั้ง "1", "2", "3", "4" และ "A", "B", "C", "D"
+function getCorrectAnswerIndex(correctAnswer: string): number {
+  if (!correctAnswer) return -1;
+  
+  const trimmed = correctAnswer.trim().toUpperCase();
+  
+  // ถ้าเป็นตัวเลข "1", "2", "3", "4", "5"... → แปลงเป็น index 0, 1, 2, 3, 4...
+  if (/^\d+$/.test(trimmed)) {
+    const num = parseInt(trimmed);
+    return num > 0 ? num - 1 : -1; // 1-based to 0-based
+  }
+  
+  // ถ้าเป็นตัวอักษร "A", "B", "C", "D", "E"... → แปลงเป็น index 0, 1, 2, 3, 4...
+  if (/^[A-Z]$/.test(trimmed)) {
+    return trimmed.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+  }
+  
+  return -1; // ไม่พบ
+}
+
 export default function QuestionRenderer({
   testId,
 }: {
@@ -82,7 +103,9 @@ export default function QuestionRenderer({
     if (selectedAnswer !== null || !attemptId) return;
 
     const q = questions[current];
-    const correctAnswerIndex = parseInt(q.correct_answer) - 1;
+    
+    // ⭐ ใช้ helper function แทน parseInt
+    const correctAnswerIndex = getCorrectAnswerIndex(q.correct_answer);
     const isCorrect = choiceIndex === correctAnswerIndex;
 
     await supabase.from('UserAnswer').insert({
@@ -114,7 +137,8 @@ export default function QuestionRenderer({
 
       const correctCount = allAnswers.filter((a, i) => {
         if (a === null) return false;
-        const correctIndex = parseInt(questions[i].correct_answer) - 1;
+        // ⭐ ใช้ helper function แทน parseInt
+        const correctIndex = getCorrectAnswerIndex(questions[i].correct_answer);
         return a === correctIndex;
       }).length;
 
@@ -159,7 +183,8 @@ export default function QuestionRenderer({
   }
 
   const q = questions[current];
-  const correctAnswerIndex = parseInt(q.correct_answer) - 1;
+  // ⭐ ใช้ helper function แทน parseInt
+  const correctAnswerIndex = getCorrectAnswerIndex(q.correct_answer);
   const isCorrect = selectedAnswer === correctAnswerIndex;
   const progress = ((current + 1) / questions.length) * 100;
 
@@ -288,7 +313,7 @@ export default function QuestionRenderer({
                 )}
               </svg>
               <span>{isCorrect ? 'ถูกต้อง' : 'ไม่ถูกต้อง'}</span>
-              {!isCorrect && (
+              {!isCorrect && correctAnswerIndex >= 0 && (
                 <span className="px-2.5 py-0.5 bg-white/20 rounded-md text-sm">
                   เฉลย: {String.fromCharCode(65 + correctAnswerIndex)}
                 </span>

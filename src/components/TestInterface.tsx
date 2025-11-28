@@ -1,18 +1,15 @@
 // src/components/TestInterface.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Timer from './Timer';
 import QuestionNavigation from './QuestionNavigation';
 
 interface Question {
   id: string;
   question_text: string;
-  option_a: string;
-  option_b: string;
-  option_c: string;
-  option_d: string;
-  correct_answer: string;
+  choices: string[]; // Array ของตัวเลือก ["A", "B", "C", "D"]
+  correct_answer: string; // อาจเป็น "1", "2", "A", "B", "C" ฯลฯ
   explanation?: string;
 }
 
@@ -23,6 +20,34 @@ interface TestInterfaceProps {
   onSubmit: (answers: Record<string, string>, timeUsed: number) => void;
 }
 
+// แปลง correct_answer ให้เป็น index (0-based)
+function getCorrectIndex(correctAnswer: string): number {
+  const trimmed = correctAnswer?.trim().toUpperCase();
+  
+  // ถ้าเป็นตัวเลข "1", "2", "3", "4" → แปลงเป็น index 0, 1, 2, 3
+  if (/^[1-4]$/.test(trimmed)) {
+    return parseInt(trimmed) - 1;
+  }
+  
+  // ถ้าเป็นตัวอักษร "A", "B", "C", "D" → แปลงเป็น index 0, 1, 2, 3
+  if (/^[A-D]$/.test(trimmed)) {
+    return trimmed.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+  }
+  
+  // ถ้าเป็น "5" หรือตัวเลขอื่น (บางข้อมีมากกว่า 4 ตัวเลือก)
+  const num = parseInt(trimmed);
+  if (!isNaN(num) && num > 0) {
+    return num - 1;
+  }
+  
+  return -1; // ไม่พบ
+}
+
+// แปลง index เป็นตัวอักษร A, B, C, D, E...
+function indexToLetter(index: number): string {
+  return String.fromCharCode(65 + index); // 0=A, 1=B, 2=C, 3=D
+}
+
 export default function TestInterface({
   examTitle,
   questions,
@@ -30,32 +55,38 @@ export default function TestInterface({
   onSubmit
 }: TestInterfaceProps) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [timeRemaining, setTimeRemaining] = useState(timeLimit * 60); // แปลงเป็นวินาที
+  const [answers, setAnswers] = useState<Record<string, number>>({}); // เก็บเป็น index (0, 1, 2, 3)
+  const [timeRemaining, setTimeRemaining] = useState(timeLimit * 60);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showExplanation, setShowExplanation] = useState(false); // แสดงเฉลยหรือไม่
-  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, boolean>>({}); // เก็บข้อที่ส่งแล้ว
+  const [showExplanation, setShowExplanation] = useState(false);
+  const [submittedAnswers, setSubmittedAnswers] = useState<Record<string, boolean>>({});
 
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
-  const isCurrentAnswered = !!answers[currentQuestion.id];
+  const isCurrentAnswered = answers[currentQuestion.id] !== undefined;
   const isCurrentSubmitted = !!submittedAnswers[currentQuestion.id];
-
-  // ตรวจสอบว่าตอบข้อนี้แล้วหรือยัง
-  const isAnswered = (questionId: string) => !!answers[questionId];
 
   // จำนวนข้อที่ตอบแล้ว
   const answeredCount = Object.keys(answers).length;
 
+  // หา correct index สำหรับข้อปัจจุบัน
+  const correctIndex = getCorrectIndex(currentQuestion.correct_answer);
+
+  // ตรวจสอบว่าคำตอบที่เลือกถูกหรือไม่
+  const isUserAnswerCorrect = (): boolean => {
+    const userAnswerIndex = answers[currentQuestion.id];
+    return userAnswerIndex === correctIndex;
+  };
+
   // เลือกคำตอบ
-  const handleSelectAnswer = (answer: string) => {
-    if (isCurrentSubmitted) return; // ถ้าส่งแล้วห้ามเปลี่ยน
+  const handleSelectAnswer = (index: number) => {
+    if (isCurrentSubmitted) return;
     
     setAnswers(prev => ({
       ...prev,
-      [currentQuestion.id]: answer
+      [currentQuestion.id]: index
     }));
-    setShowExplanation(false); // ซ่อนเฉลยเมื่อเปลี่ยนคำตอบ
+    setShowExplanation(false);
   };
 
   // ส่งคำตอบข้อปัจจุบัน
@@ -76,7 +107,7 @@ export default function TestInterface({
   const handleNext = () => {
     if (currentQuestionIndex < totalQuestions - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
-      setShowExplanation(false); // ซ่อนเฉลยเมื่อไปข้อใหม่
+      setShowExplanation(false);
     }
   };
 
@@ -84,17 +115,17 @@ export default function TestInterface({
   const handlePrevious = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex(prev => prev - 1);
-      setShowExplanation(false); // ซ่อนเฉลยเมื่อย้อนกลับ
+      setShowExplanation(false);
     }
   };
 
   // กระโดดไปข้อที่เลือก
   const handleJumpToQuestion = (index: number) => {
     setCurrentQuestionIndex(index);
-    setShowExplanation(false); // ซ่อนเฉลยเมื่อกระโดดข้อ
+    setShowExplanation(false);
   };
 
-  // ส่งคำตอบ
+  // ส่งคำตอบทั้งหมด
   const handleSubmit = async () => {
     if (answeredCount < totalQuestions) {
       const confirmSubmit = window.confirm(
@@ -105,7 +136,14 @@ export default function TestInterface({
 
     setIsSubmitting(true);
     const timeUsed = timeLimit * 60 - timeRemaining;
-    await onSubmit(answers, timeUsed);
+    
+    // แปลง answers จาก index เป็น letter (A, B, C, D) ก่อนส่ง
+    const answersAsLetters: Record<string, string> = {};
+    for (const [questionId, answerIndex] of Object.entries(answers)) {
+      answersAsLetters[questionId] = indexToLetter(answerIndex);
+    }
+    
+    await onSubmit(answersAsLetters, timeUsed);
   };
 
   // เมื่อหมดเวลา
@@ -113,6 +151,24 @@ export default function TestInterface({
     alert('หมดเวลา! ระบบจะส่งคำตอบอัตโนมัติ');
     handleSubmit();
   };
+
+  // Parse choices - รองรับทั้ง string และ array
+  const getChoices = (): string[] => {
+    if (Array.isArray(currentQuestion.choices)) {
+      return currentQuestion.choices;
+    }
+    // ถ้าเป็น string ที่เก็บเป็น JSON
+    if (typeof currentQuestion.choices === 'string') {
+      try {
+        return JSON.parse(currentQuestion.choices);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  };
+
+  const choices = getChoices();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 py-8 px-4">
@@ -142,14 +198,15 @@ export default function TestInterface({
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           
-          {/* Main Content - คำถามและตัวเลือก */}
+          {/* Main Content */}
           <div className="lg:col-span-3">
             <div className="bg-white rounded-2xl shadow-xl p-6 md:p-8">
               
               {/* คำถาม */}
               <div className="mb-8">
-                <div className="inline-block bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-semibold mb-4">
-                  ข้อที่ {currentQuestionIndex + 1}
+                <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-semibold mb-4">
+                  <span className="text-lg">❓</span>
+                  <span>Question</span>
                 </div>
                 <h2 className="text-xl md:text-2xl font-semibold text-gray-800 leading-relaxed whitespace-pre-wrap">
                   {currentQuestion.question_text}
@@ -158,19 +215,18 @@ export default function TestInterface({
 
               {/* ตัวเลือก */}
               <div className="space-y-3 mb-8">
-                {['A', 'B', 'C', 'D'].map((option) => {
-                  const optionKey = `option_${option.toLowerCase()}` as keyof Question;
-                  const optionText = currentQuestion[optionKey] as string;
-                  const isSelected = answers[currentQuestion.id] === option;
-                  const isCorrect = option === currentQuestion.correct_answer;
+                {choices.map((choiceText, index) => {
+                  const letter = indexToLetter(index);
+                  const isSelected = answers[currentQuestion.id] === index;
+                  const isCorrect = index === correctIndex;
                   
-                  // ถ้าส่งคำตอบแล้ว แสดงสี
+                  // กำหนด style ตามสถานะ
                   let buttonClass = '';
                   if (isCurrentSubmitted && showExplanation) {
                     if (isCorrect) {
-                      buttonClass = 'border-green-500 bg-green-50'; // คำตอบที่ถูก
+                      buttonClass = 'border-green-500 bg-green-50';
                     } else if (isSelected && !isCorrect) {
-                      buttonClass = 'border-red-500 bg-red-50'; // คำตอบที่เลือกผิด
+                      buttonClass = 'border-red-500 bg-red-50';
                     } else {
                       buttonClass = 'border-gray-200 bg-gray-50 opacity-60';
                     }
@@ -182,8 +238,8 @@ export default function TestInterface({
                   
                   return (
                     <button
-                      key={option}
-                      onClick={() => handleSelectAnswer(option)}
+                      key={index}
+                      onClick={() => handleSelectAnswer(index)}
                       disabled={isCurrentSubmitted}
                       className={`w-full text-left p-4 md:p-5 rounded-xl border-2 transition-all duration-200 ${buttonClass} ${
                         isCurrentSubmitted ? 'cursor-not-allowed' : ''
@@ -201,15 +257,15 @@ export default function TestInterface({
                             ? 'bg-blue-500 text-white'
                             : 'bg-gray-200 text-gray-700'
                         }`}>
-                          {option}
+                          {letter}
                         </span>
                         <span className="text-gray-800 leading-relaxed flex-1">
-                          {optionText}
+                          {choiceText}
                         </span>
-                        {/* แสดงไอคอน ✓ หรือ ✗ */}
+                        {/* แสดงไอคอน ✔ หรือ ✗ */}
                         {isCurrentSubmitted && showExplanation && (
                           <span className="flex-shrink-0 text-xl">
-                            {isCorrect ? '✓' : isSelected && !isCorrect ? '✗' : ''}
+                            {isCorrect ? '✔' : isSelected && !isCorrect ? '✗' : ''}
                           </span>
                         )}
                       </div>
@@ -221,35 +277,38 @@ export default function TestInterface({
               {/* แสดงเฉลย */}
               {isCurrentSubmitted && showExplanation && (
                 <div className={`mb-6 p-5 rounded-xl border-2 ${
-                  answers[currentQuestion.id] === currentQuestion.correct_answer
+                  isUserAnswerCorrect()
                     ? 'border-green-500 bg-green-50'
                     : 'border-red-500 bg-red-50'
                 }`}>
                   <div className="flex items-start gap-3 mb-3">
                     <span className={`text-2xl ${
-                      answers[currentQuestion.id] === currentQuestion.correct_answer
+                      isUserAnswerCorrect()
                         ? 'text-green-600'
                         : 'text-red-600'
                     }`}>
-                      {answers[currentQuestion.id] === currentQuestion.correct_answer ? '✓' : '✗'}
+                      {isUserAnswerCorrect() ? '✔' : '✗'}
                     </span>
                     <div className="flex-1">
-                      <p className={`font-bold text-lg mb-2 ${
-                        answers[currentQuestion.id] === currentQuestion.correct_answer
+                      <p className={`font-bold text-lg mb-2 flex items-center gap-2 ${
+                        isUserAnswerCorrect()
                           ? 'text-green-700'
                           : 'text-red-700'
                       }`}>
-                        {answers[currentQuestion.id] === currentQuestion.correct_answer
-                          ? 'ถูกต้อง! 🎉'
-                          : 'ผิด! 😔'}
+                        {isUserAnswerCorrect()
+                          ? <><span>ถูกต้อง!</span><span className="text-xl">🎉</span></>
+                          : <><span>ไม่ถูกต้อง</span><span className="text-xl">😔</span></>}
                       </p>
                       <p className="text-gray-700 mb-2">
-                        <strong>คำตอบที่ถูกต้อง:</strong> ตัวเลือก {currentQuestion.correct_answer}
+                        <strong>คำตอบที่ถูกต้อง:</strong> ตัวเลือก {indexToLetter(correctIndex)} - {choices[correctIndex]}
                       </p>
                       {currentQuestion.explanation && (
                         <div className="mt-3 pt-3 border-t border-gray-300">
-                          <p className="font-semibold text-gray-800 mb-1">📖 คำอธิบาย:</p>
-                          <p className="text-gray-700 leading-relaxed">
+                          <p className="font-semibold text-gray-800 mb-1 flex items-center gap-2">
+                            <span className="text-lg">⚙️</span>
+                            <span>คำอธิบาย</span>
+                          </p>
+                          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">
                             {currentQuestion.explanation}
                           </p>
                         </div>
@@ -288,7 +347,7 @@ export default function TestInterface({
                     disabled={isSubmitting}
                     className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
                   >
-                    {isSubmitting ? 'กำลังส่ง...' : '✓ ส่งคำตอบ'}
+                    {isSubmitting ? 'กำลังส่ง...' : '✔ ส่งคำตอบ'}
                   </button>
                 ) : (
                   <button
@@ -313,13 +372,13 @@ export default function TestInterface({
               onSelectQuestion={handleJumpToQuestion}
             />
             
-            {/* Submit Button - Mobile */}
+            {/* Submit Button */}
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
               className="w-full mt-4 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all disabled:opacity-50"
             >
-              {isSubmitting ? 'กำลังส่ง...' : '✓ ส่งคำตอบทั้งหมด'}
+              {isSubmitting ? 'กำลังส่ง...' : '✔ ส่งคำตอบทั้งหมด'}
             </button>
           </div>
         </div>
