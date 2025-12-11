@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { Flag, Clock, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Question {
   id: string;
@@ -12,46 +14,58 @@ interface Question {
   explanation?: string;
 }
 
-// ⭐ Helper function: แปลง correct_answer เป็น index (0-based)
-// รองรับทั้ง "1", "2", "3", "4" และ "A", "B", "C", "D"
+// Helper function: แปลง correct_answer เป็น index (0-based)
 function getCorrectAnswerIndex(correctAnswer: string): number {
   if (!correctAnswer) return -1;
-  
   const trimmed = correctAnswer.trim().toUpperCase();
-  
-  // ถ้าเป็นตัวเลข "1", "2", "3", "4", "5"... → แปลงเป็น index 0, 1, 2, 3, 4...
   if (/^\d+$/.test(trimmed)) {
     const num = parseInt(trimmed);
-    return num > 0 ? num - 1 : -1; // 1-based to 0-based
+    return num > 0 ? num - 1 : -1;
   }
-  
-  // ถ้าเป็นตัวอักษร "A", "B", "C", "D", "E"... → แปลงเป็น index 0, 1, 2, 3, 4...
   if (/^[A-Z]$/.test(trimmed)) {
-    return trimmed.charCodeAt(0) - 65; // A=0, B=1, C=2, D=3
+    return trimmed.charCodeAt(0) - 65;
   }
-  
-  return -1; // ไม่พบ
+  return -1;
 }
 
-export default function QuestionRenderer({
-  testId,
-}: {
+interface QuestionRendererProps {
   testId: string;
-}) {
+  testTitle?: string;
+}
+
+export default function QuestionRenderer({ testId, testTitle }: QuestionRendererProps) {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [current, setCurrent] = useState(0);
   const [answers, setAnswers] = useState<(number | null)[]>([]);
   const [loading, setLoading] = useState(true);
   const [showExplanation, setShowExplanation] = useState(false);
+  const [explanationExpanded, setExplanationExpanded] = useState(true);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
+  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [flaggedQuestions, setFlaggedQuestions] = useState<Set<number>>(new Set());
+  const [results, setResults] = useState<Record<number, 'correct' | 'incorrect'>>({});
+  const [title, setTitle] = useState(testTitle || '');
+  
   const router = useRouter();
-
   const supabase = createClient();
 
+  // โหลดคำถาม
   useEffect(() => {
     const init = async () => {
       try {
+        // โหลด Test info ถ้ายังไม่มี title
+        if (!testTitle) {
+          const { data: testData } = await supabase
+            .from('Tests')
+            .select('title')
+            .eq('id', testId)
+            .single();
+          if (testData?.title) {
+            setTitle(testData.title);
+          }
+        }
+
         const { data: questionsData, error: questionsError } = await supabase
           .from('Question')
           .select('*')
@@ -63,7 +77,6 @@ export default function QuestionRenderer({
           return;
         }
 
-        // ⭐ แปลง choices เป็น array
         const formattedQuestions = questionsData.map(q => ({
           ...q,
           choices: Array.isArray(q.choices) 
@@ -76,7 +89,7 @@ export default function QuestionRenderer({
         setQuestions(formattedQuestions);
         setAnswers(new Array(formattedQuestions.length).fill(null));
 
-        const { data: attemptData, error: attemptError } = await supabase
+        const { data: attemptData } = await supabase
           .from('TestAttempt')
           .insert({
             test_id: testId,
@@ -87,7 +100,7 @@ export default function QuestionRenderer({
           .select('*')
           .single();
 
-        if (!attemptError && attemptData?.id) {
+        if (attemptData?.id) {
           setAttemptId(attemptData.id);
         }
         setLoading(false);
@@ -97,14 +110,30 @@ export default function QuestionRenderer({
     };
 
     init();
-  }, [testId]);
+  }, [testId, testTitle]);
 
+  // Timer
+  useEffect(() => {
+    if (loading) return;
+    const timer = setInterval(() => {
+      setTimeElapsed(prev => prev + 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [loading]);
+
+  // Format time
+  const formatTime = (seconds: number) => {
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Handle answer
   const handleAnswer = async (choiceIndex: number) => {
     if (selectedAnswer !== null || !attemptId) return;
 
     const q = questions[current];
-    
-    // ⭐ ใช้ helper function แทน parseInt
     const correctAnswerIndex = getCorrectAnswerIndex(q.correct_answer);
     const isCorrect = choiceIndex === correctAnswerIndex;
 
@@ -120,261 +149,325 @@ export default function QuestionRenderer({
     setAnswers(newAnswers);
     setSelectedAnswer(choiceIndex);
     setShowExplanation(true);
+    setResults(prev => ({
+      ...prev,
+      [current]: isCorrect ? 'correct' : 'incorrect'
+    }));
   };
 
+  // Navigation
   const handleNext = async () => {
     if (current < questions.length - 1) {
       setCurrent(current + 1);
-      setShowExplanation(false);
-      setSelectedAnswer(null);
+      setShowExplanation(answers[current + 1] !== null);
+      setSelectedAnswer(answers[current + 1]);
+      setExplanationExpanded(true);
     } else {
-      if (!attemptId) return;
-
-      const allAnswers = [...answers];
-      if (selectedAnswer !== null) {
-        allAnswers[current] = selectedAnswer;
-      }
-
-      const correctCount = allAnswers.filter((a, i) => {
-        if (a === null) return false;
-        // ⭐ ใช้ helper function แทน parseInt
-        const correctIndex = getCorrectAnswerIndex(questions[i].correct_answer);
-        return a === correctIndex;
-      }).length;
-
-      const scorePercent = Math.round((correctCount / questions.length) * 100);
-
-      await supabase
-        .from('TestAttempt')
-        .update({
-          score: correctCount,
-          score_percent: scorePercent,
-          correct_answers: correctCount,
-          is_completed: true,
-          end_time: new Date().toISOString(),
-        })
-        .eq('id', attemptId);
-
-      router.push(`/result/${attemptId}`);
+      await finishTest();
     }
   };
 
+  const handlePrev = () => {
+    if (current > 0) {
+      setCurrent(current - 1);
+      setShowExplanation(answers[current - 1] !== null);
+      setSelectedAnswer(answers[current - 1]);
+      setExplanationExpanded(true);
+    }
+  };
+
+  // Toggle flag
+  const toggleFlag = () => {
+    setFlaggedQuestions(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(current)) {
+        newSet.delete(current);
+      } else {
+        newSet.add(current);
+      }
+      return newSet;
+    });
+  };
+
+  // Finish test
+  const finishTest = async () => {
+    if (!attemptId) return;
+
+    const correctCount = Object.values(results).filter(r => r === 'correct').length;
+    const scorePercent = Math.round((correctCount / questions.length) * 100);
+
+    await supabase
+      .from('TestAttempt')
+      .update({
+        score: correctCount,
+        score_percent: scorePercent,
+        correct_answers: correctCount,
+        end_time: new Date().toISOString(),
+        is_completed: true,
+      })
+      .eq('id', attemptId);
+
+    router.push(`/result/${attemptId}`);
+  };
+
+  // Loading
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
+      <div className="flex justify-center items-center min-h-screen bg-gray-50">
         <div className="text-center">
-          <div className="w-12 h-12 mx-auto mb-4 border-4 border-gray-200 dark:border-gray-800 border-t-indigo-600 dark:border-t-indigo-500 rounded-full animate-spin"></div>
-          <p className="text-gray-600 dark:text-gray-400">กำลังโหลดข้อสอบ...</p>
+          <div className="w-12 h-12 mx-auto mb-4 border-4 border-gray-200 border-t-indigo-600 rounded-full animate-spin"></div>
+          <p className="text-gray-600">กำลังโหลดข้อสอบ...</p>
         </div>
       </div>
     );
   }
 
-  if (questions.length === 0 || !attemptId) {
+  if (questions.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-        <div className="text-center">
-          <div className="text-5xl mb-4">📝</div>
-          <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">ไม่พบข้อสอบ</h2>
-          <p className="text-gray-600 dark:text-gray-400">กรุณาลองใหม่อีกครั้ง</p>
-        </div>
+      <div className="text-center py-20 text-gray-500">
+        ไม่พบข้อสอบ
       </div>
     );
   }
 
   const q = questions[current];
-  // ⭐ ใช้ helper function แทน parseInt
   const correctAnswerIndex = getCorrectAnswerIndex(q.correct_answer);
-  const isCorrect = selectedAnswer === correctAnswerIndex;
-  const progress = ((current + 1) / questions.length) * 100;
+  const isFlagged = flaggedQuestions.has(current);
+
+  // Stats
+  const correctCount = Object.values(results).filter(r => r === 'correct').length;
+  const incorrectCount = Object.values(results).filter(r => r === 'incorrect').length;
+  const leftCount = questions.length - correctCount - incorrectCount;
+  const progressPercent = Math.round(((correctCount + incorrectCount) / questions.length) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="fixed inset-0 z-[9999] bg-gray-50 dark:bg-gray-950 flex flex-col">
       
-      {/* Header - Clean & Minimal */}
-      <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">{current + 1}</span>
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">คำถามที่</p>
-                <p className="text-sm font-semibold text-gray-900 dark:text-white">{current + 1} / {questions.length}</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">ความคืบหน้า</p>
-              <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
-                {Math.round(progress)}%
-              </p>
-            </div>
-          </div>
-          <div className="w-full h-1.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
+      {/* ============================================ */}
+      {/* Fixed Header - Logo + Title + Timer */}
+      {/* ============================================ */}
+      <header className="flex-shrink-0 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+          {/* Logo - กลับหน้าหลัก */}
+          <Link 
+            href="/"
+            className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 text-transparent bg-clip-text hover:opacity-80 transition-opacity flex-shrink-0"
+          >
+            E-Korsob.com
+          </Link>
+          
+          {/* Title */}
+          <h1 className="text-lg font-bold text-gray-800 dark:text-gray-200 truncate flex-1 text-center">
+            {title || 'ข้อสอบ'}
+          </h1>
+          
+          {/* Timer */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 rounded-full flex-shrink-0">
+            <Clock className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+            <span className="font-mono text-sm font-semibold text-gray-800 dark:text-gray-200">
+              {formatTime(timeElapsed)}
+            </span>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* Main Content - Focused Layout */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        
-        {/* Question Card */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-800 p-8 mb-6">
+      {/* ============================================ */}
+      {/* Main Content */}
+      {/* ============================================ */}
+      <main className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="max-w-3xl mx-auto">
           
-          {/* Question Number Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg mb-6">
-            <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">Question</span>
+          {/* Question Header */}
+          <div className="flex items-start justify-between mb-4">
+            <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+              Question {current + 1}.
+            </span>
+            <button 
+              onClick={toggleFlag}
+              className={`p-2 rounded-lg transition-colors ${
+                isFlagged 
+                  ? 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-400 hover:text-red-500'
+              }`}
+            >
+              <Flag className="w-5 h-5" fill={isFlagged ? "currentColor" : "none"} />
+            </button>
           </div>
 
           {/* Question Text */}
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-8 leading-relaxed">
+          <h2 className="text-lg text-gray-800 dark:text-gray-100 mb-6 leading-relaxed">
             {q.question_text}
           </h2>
 
-          {/* Choices - Clean Design */}
-          <div className="space-y-3">
+          {/* Options - Compact Style */}
+          <div className="space-y-2">
             {q.choices.map((choice, i) => {
               const isSelected = selectedAnswer === i;
               const isCorrectChoice = i === correctAnswerIndex;
               const showResult = showExplanation;
 
+              let optionStyle = '';
+              let radioStyle = '';
+
+              if (showResult) {
+                if (isCorrectChoice) {
+                  optionStyle = 'bg-green-50 dark:bg-green-900/20 border-l-4 border-l-green-500';
+                  radioStyle = 'border-green-500 bg-green-500';
+                } else if (isSelected && !isCorrectChoice) {
+                  optionStyle = 'bg-gray-50 dark:bg-gray-800';
+                  radioStyle = 'border-gray-300 dark:border-gray-600';
+                } else {
+                  optionStyle = 'bg-white dark:bg-gray-900 opacity-60';
+                  radioStyle = 'border-gray-300 dark:border-gray-600';
+                }
+              } else {
+                optionStyle = isSelected 
+                  ? 'bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-l-indigo-500' 
+                  : 'bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800';
+                radioStyle = isSelected 
+                  ? 'border-indigo-500 bg-indigo-500' 
+                  : 'border-gray-300 dark:border-gray-600';
+              }
+
               return (
                 <button
                   key={i}
                   onClick={() => handleAnswer(i)}
-                  disabled={selectedAnswer !== null}
-                  className={`w-full text-left px-5 py-4 rounded-xl border-2 transition-all duration-200 ${
-                    !showResult
-                      ? isSelected
-                        ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-500'
-                        : 'border-gray-200 dark:border-gray-800 hover:border-indigo-300 dark:hover:border-indigo-700 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-                      : isCorrectChoice
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                      : isSelected
-                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                      : 'border-gray-200 dark:border-gray-800 opacity-50'
+                  disabled={showResult}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${optionStyle} ${
+                    !showResult ? 'cursor-pointer' : 'cursor-default'
                   }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-sm ${
-                      showResult && isCorrectChoice
-                        ? 'bg-green-500 text-white'
-                        : showResult && isSelected && !isCorrectChoice
-                        ? 'bg-red-500 text-white'
-                        : isSelected
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                    }`}>
-                      {String.fromCharCode(65 + i)}
-                    </div>
-                    <span className="flex-1 text-gray-900 dark:text-white font-medium">
-                      {choice}
-                    </span>
-                    {showResult && isCorrectChoice && (
-                      <svg className="w-6 h-6 text-green-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    {showResult && isSelected && !isCorrectChoice && (
-                      <svg className="w-6 h-6 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                  {/* Radio circle */}
+                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-colors ${radioStyle}`}>
+                    {(isSelected || (showResult && isCorrectChoice)) && (
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
                     )}
                   </div>
+                  
+                  {/* Option text */}
+                  <span className={`text-sm ${
+                    showResult && isCorrectChoice 
+                      ? 'text-green-700 dark:text-green-400 font-medium' 
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    ({String.fromCharCode(65 + i)}) {choice}
+                  </span>
                 </button>
               );
             })}
           </div>
-        </div>
 
-        {/* Result & Explanation - Compact */}
-        {showExplanation && (
-          <div className="space-y-4">
-            
-            {/* Result Badge - Clean */}
-            <div className={`inline-flex items-center gap-3 px-5 py-3 rounded-xl font-semibold ${
-              isCorrect 
-                ? 'bg-green-500 text-white' 
-                : 'bg-red-500 text-white'
-            }`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                {isCorrect ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                ) : (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                )}
-              </svg>
-              <span>{isCorrect ? 'ถูกต้อง' : 'ไม่ถูกต้อง'}</span>
-              {!isCorrect && correctAnswerIndex >= 0 && (
-                <span className="px-2.5 py-0.5 bg-white/20 rounded-md text-sm">
-                  เฉลย: {String.fromCharCode(65 + correctAnswerIndex)}
+          {/* Answer & Explanation Section */}
+          {showExplanation && (
+            <div className="mt-6 border-l-4 border-gray-200 dark:border-gray-700 pl-4">
+              {/* Correct Answer */}
+              <p className="text-sm mb-2">
+                <span className="text-green-600 dark:text-green-400 font-medium">Correct answer:</span>{' '}
+                <span className="text-green-700 dark:text-green-300">
+                  ({String.fromCharCode(65 + correctAnswerIndex)}) {q.choices[correctAnswerIndex]}
                 </span>
+              </p>
+              
+              {/* Toggle Explanation */}
+              {q.explanation && (
+                <>
+                  <button 
+                    onClick={() => setExplanationExpanded(!explanationExpanded)}
+                    className="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 font-medium flex items-center gap-1"
+                  >
+                    {explanationExpanded ? 'Hide' : 'Show'} Explanation
+                    <ChevronDown 
+                      className={`w-4 h-4 transition-transform ${explanationExpanded ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {/* Explanation Content */}
+                  {explanationExpanded && (
+                    <div className="mt-4">
+                      <h4 className="font-semibold text-gray-800 dark:text-gray-200 mb-2">Detailed Explanation:</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">
+                        {q.explanation}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
+          )}
+        </div>
+      </main>
 
-            {/* Explanation - Clean Box */}
-            {q.explanation && (
-              <div className="bg-white dark:bg-gray-900 rounded-xl border border-indigo-200 dark:border-indigo-900 p-5">
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-1.5">คำอธิบาย</p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                      {q.explanation}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+      {/* ============================================ */}
+      {/* Fixed Navigation Buttons */}
+      {/* ============================================ */}
+      <div className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-100 dark:border-gray-800 px-4 py-3">
+        <div className="max-w-3xl mx-auto flex items-center justify-between">
+          <button
+            onClick={handlePrev}
+            disabled={current === 0}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              current === 0
+                ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
+            }`}
+          >
+            <ChevronLeft className="w-5 h-5" />
+            Previous
+          </button>
 
-            {/* Next Button - Clean */}
-            <button
-              onClick={handleNext}
-              className="w-full px-6 py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-200"
-            >
-              {current >= questions.length - 1 ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
-                  ดูผลคะแนน
-                </span>
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  ข้อถัดไป
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
-              )}
-            </button>
-          </div>
-        )}
-
-        {/* Instruction - Subtle */}
-        {!showExplanation && (
-          <div className="text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              เลือกคำตอบที่ถูกต้อง
-            </p>
-          </div>
-        )}
+          <button
+            onClick={handleNext}
+            disabled={selectedAnswer === null}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-semibold transition-colors ${
+              selectedAnswer === null
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+            }`}
+          >
+            {current >= questions.length - 1 ? 'Finish' : 'Next'}
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
       </div>
+
+      {/* ============================================ */}
+      {/* Fixed Footer - Progress Bar */}
+      {/* ============================================ */}
+      <footer className="flex-shrink-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 px-4 py-3">
+        <div className="max-w-3xl mx-auto">
+          {/* Progress Bar */}
+          <div className="flex items-center gap-4 mb-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Progress</span>
+            <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-sm font-medium text-indigo-600 dark:text-indigo-400">{progressPercent}%</span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">{correctCount + incorrectCount}/{questions.length}</span>
+          </div>
+
+          {/* Stats */}
+          <div className="flex items-center justify-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{correctCount} Correct</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-orange-500"></span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{incorrectCount} Incorrect</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+              <span className="text-sm text-gray-600 dark:text-gray-400">{leftCount} Left</span>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
